@@ -1,0 +1,72 @@
+package main
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"fmt"
+	"time"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+)
+
+var dsn = "root:Smith@2022@tcp(127.0.0.1:3306)/db_call_api?charset=utf8mb4&parseTime=True&loc=Local"
+var db, _ = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+
+// 测试数据库设计一张表，字段有
+type ApiCalling struct {
+	ID   int64  `json:"id"`
+	Type string `json:"type"`
+	Url  string `json:"url"`
+}
+
+// db.AutoMigrate(&ApiCalling{})
+//Create
+// db.Create(&ApiCalling{Type: "dd", Url: "13sex.xyz"})
+
+func callingDBrecord(s string) ([]*ApiCalling, error) {
+	fmt.Println("user type request is : ", s)
+	apiCallings := []*ApiCalling{}
+	if err := db.Model(&ApiCalling{}).Where("type", s).Find(&apiCallings).Error; err != nil {
+		return nil, err
+	}
+	fmt.Println(&apiCallings)
+	return apiCallings, nil
+}
+
+func startPolling(w http.ResponseWriter, r *http.Request) {
+	for {
+		<-time.After(3 * time.Second)
+		// apiCallings, err := callingDBrecord("from polling ..request is : ")
+		apiCallings, err := callingDBrecord(r.URL.Path[1:])
+		if err != nil {
+			if err.Error() == "not found" {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(apiCallings)
+				return
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(apiCallings)
+	}
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hello your request parameter is %s!", r.URL.Path[1:])
+	go startPolling(w, r)
+}
+
+func getData(w http.ResponseWriter, r *http.Request) {
+	apiCallings := []*ApiCalling{}
+	db.Model(&ApiCalling{}).Where("type", "dd").Find(&apiCallings)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(apiCallings)
+}
+
+func main() {
+
+	http.HandleFunc("/", handler)
+	http.HandleFunc("/getdata", getData)
+	http.ListenAndServe(":8080", nil)
+}

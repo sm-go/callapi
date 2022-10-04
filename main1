@@ -1,0 +1,56 @@
+package test
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+
+	"fmt"
+	"time"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+)
+
+var dsn = "root:Smith@2022@tcp(127.0.0.1:3306)/db_call_api?charset=utf8mb4&parseTime=True&loc=Local"
+var db, _ = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+
+// 测试数据库设计一张表，字段有
+type ApiCalling struct {
+	ID   int64  `json:"id"`
+	Type string `json:"type"`
+	Url  string `json:"url"`
+}
+
+// getApi responds with the list of all Api as JSON.
+func getApi(c *gin.Context) {
+	db.AutoMigrate(&ApiCalling{})
+	//Create
+	// db.Create(&ApiCalling{Type: "dd", Url: "13sex.xyz"})
+
+	//Select
+	// var myApi ApiCalling
+	myApi := db.First(&ApiCalling{}) // find product with id
+
+	c.IndentedJSON(http.StatusOK, myApi)
+}
+
+func doEveryOneHour(d time.Duration, f func(time.Time)) {
+	for x := range time.Tick(d) {
+		f(x)
+	}
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hi there, I love %s!", r.URL.Path[1:])
+}
+
+func helloworld(t time.Time) {
+	fmt.Printf("%v: Hello, World!\n", t)
+}
+func main() {
+	// router := gin.Default()
+	router.GET("/api", doEveryOneHour(2*time.Second, helloworld))
+	// router.Run("localhost:8081")
+
+

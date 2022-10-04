@@ -1,0 +1,61 @@
+package main
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"fmt"
+	"time"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+)
+
+var dsn = "root:Smith@2022@tcp(127.0.0.1:3306)/db_call_api?charset=utf8mb4&parseTime=True&loc=Local"
+var db, _ = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+
+// 测试数据库设计一张表，字段有
+type ApiCalling struct {
+	ID   int64  `json:"id"`
+	Type string `json:"type"`
+	Url  string `json:"url"`
+}
+
+func callingDBrecord(s string) ([]*ApiCalling, error) {
+	fmt.Println("doing something", s)
+	apiCallings := []*ApiCalling{}
+	if err := db.Model(&ApiCalling{}).Where("type", s).Find(&apiCallings).Error; err != nil {
+		return nil, err
+	}
+	fmt.Println(apiCallings)
+	return apiCallings, nil
+}
+
+func startPolling(w http.ResponseWriter) {
+	for {
+		<-time.After(3 * time.Second)
+		apiCallings, err := callingDBrecord("from polling ..")
+		if err != nil {
+			if err.Error() == "not found" {
+				// w.Write(ApiCalling)
+				// w.IndentedJSON
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(apiCallings)
+				return
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(apiCallings)
+	}
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hello your request parameter is %s!", r.URL.Path[1:])
+	go startPolling(w)
+}
+
+func main() {
+
+	http.HandleFunc("/", handler)
+	http.ListenAndServe(":8080", nil)
+}
